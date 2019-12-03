@@ -5,6 +5,7 @@ RADIUS_NOISE = 0.1
 COORDINATE_NOISE = 0.2
 EPS = 1e-10
 
+
 #######################################################################################################################
 
 def normal(lower=None, upper=None):
@@ -88,8 +89,30 @@ class Line(BaseObject):
         self.is_arrow = is_arrow
         self.is_solid = is_solid
 
-    def
+    def __add__(self, point):
+        assert isinstance(point, Point)
+        return Line(self.point_from + point, self.point_to + point, self.is_arrow, self.is_solid)
 
+    def __sub__(self, point):
+        assert isinstance(point, Point)
+        return Line(self.point_from - point, self.point_to - point, self.is_arrow, self.is_solid)
+
+    def __mul__(self, mul):
+        return Line(self.point_from * mul, self.point_to * mul, self.is_arrow, self.is_solid)
+
+    def __str__(self):
+        return "Line( %s, %s, arrow = %s, solid = %s)" % (self.point_from, self.point_to,
+                                                          str(self.is_arrow), str(self.is_solid))
+
+    def length(self):
+        return np.sqrt(self.x**2 + self.y**2)
+
+    def to_command(self, noisy=False):
+        old_noise = COORDINATE_NOISE
+
+
+
+        COORDINATE_NOISE = old_noise
 
 #######################################################################################################################
 
