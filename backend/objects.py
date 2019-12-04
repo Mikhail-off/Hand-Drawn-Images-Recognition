@@ -58,6 +58,9 @@ class BaseObject:
 def sample_coordinate():
     return np.random.randint(1, MAX_COORDINATE)
 
+def sample_radius():
+    return np.random.randint(1, 6)
+
 
 class Point(BaseObject):
     @staticmethod
@@ -86,10 +89,15 @@ class Point(BaseObject):
     def __str__(self):
         return "(%s, %s)" % (str(self.x), str(self.y))
 
+    def is_valid(self):
+        return 1 <= self.x <= MAX_COORDINATE - 1 and 1 <= self.y <= MAX_COORDINATE - 1
+
     def make_noisy(self):
         return Point(self.x + normal() * COORDINATE_NOISE, self.y + normal() * COORDINATE_NOISE)
 
     def to_command(self, noisy=False):
+        if noisy:
+            return str(self.make_noisy())
         return str(self)
 
 
@@ -123,7 +131,11 @@ class Line(BaseObject):
                                                           str(self.is_arrow), str(self.is_solid))
 
     def length(self):
-        return np.sqrt(self.x**2 + self.y**2)
+        vector = self.point_to - self.point_from
+        return np.sqrt(vector.x**2 + vector.y**2)
+
+    def is_valid(self):
+        return self.point_from.is_valid() and self.point_to.is_valid()
 
     def make_noisy(self):
         old_noise = COORDINATE_NOISE
@@ -137,12 +149,15 @@ class Line(BaseObject):
         return line
 
     def to_command(self, noisy=False):
+        line = self
+        if noisy:
+            line = self.make_noisy()
         width_attribute = "line width = %.2fcm"
         if noisy:
             attributes = [width_attribute % (LINE_WIDTH + normal(-1, 1) * LINE_WIDTH_NOISE)]
         else:
             attributes = [width_attribute % LINE_WIDTH]
-        if self.is_arrow:
+        if line.is_arrow:
             scale = 1.5
             if noisy:
                 scale = round(scale - 0.3 * random(), 1)
@@ -157,7 +172,7 @@ class Line(BaseObject):
 
             attributes.append(style % scale)
 
-        if not self.is_solid:
+        if not line.is_solid:
             if noisy:
                 attributes += ["dash pattern = on %dpt off %dpt" % (choice(range(2, 7)),
                                                                     choice(range(2, 7)))]
@@ -168,18 +183,132 @@ class Line(BaseObject):
             attributes += ["pencildraw"]
 
         attributes_str = ", ".join(attributes)
-        return "\\draw[%s] %s -- %s;" % (attributes_str, self.point_from, self.point_to)
+        return "\\draw[%s] %s -- %s;" % (attributes_str, line.point_from, line.point_to)
+
+
+#######################################################################################################################
+
+
+class Circle(BaseObject):
+    @staticmethod
+    def sample():
+        while True:
+            c = Point.sample()
+            r = sample_radius()
+            if Point(c.x - r, c.y).is_valid() and\
+                    Point(c.x + r, c.y).is_valid() and\
+                    Point(c.x, c.y - r).is_valid() and\
+                    Point(c.x, c.y + r).is_valid():
+                return Circle(c, r)
+
+    def __init__(self, center, radius):
+        self.center = center
+        self.radius = radius
+
+    def __add__(self, point):
+        return Circle(self.center + point, self.radius)
+
+    def __sub__(self, point):
+        return Circle(self.center - point, self.radius)
+
+    def __str__(self):
+        return "Circle( %s, %f )" % (self.center, self.radius)
+
+    def make_noisy(self):
+        return Circle(self.center.make_noisy(), self.radius + normal(-1, 1) * RADIUS_NOISE)
+
+    def to_command(self, noisy=False):
+        noisy_attrib = "pencildraw, " if noisy else ""
+        line_width = "line width = %.1fcm" % LINE_WIDTH
+        circle = self
+        if noisy:
+            line_width = "line width = %.2fcm" % (LINE_WIDTH + normal(-1, 1) * LINE_WIDTH_NOISE)
+            circle = self.make_noisy()
+        return "\\node[draw, %scircle, inner sep=0pt, minimum size = %.2fcm, %s] at %s {};" % (noisy_attrib,
+                                                                                               circle.radius * 2,
+                                                                                               line_width,
+                                                                                               circle.center)
+
+
+#######################################################################################################################
+
+
+class Rectangle(BaseObject):
+    @staticmethod
+    def sample():
+        while True:
+            p1 = Point.sample()
+            p2 = Point.sample()
+            if p1.x != p2.x and p1.y != p2.y:
+                x1 = (min([p1.x, p2.x]))
+                x2 = (max([p1.x, p2.x]))
+                y1 = (min([p1.y, p2.y]))
+                y2 = (max([p1.y, p2.y]))
+                top_left = Point(x1, y1)
+                bottom_right = Point(x2, y2)
+                return Rectangle(top_left, bottom_right)
+
+
+    def __init__(self, top_left, bottom_right):
+        self.top_left = top_left
+        self.bottom_right = bottom_right
+
+    def __add__(self, point):
+        return Rectangle(self.top_left + point, self.bottom_right + point)
+
+    def __sub__(self, point):
+        return Rectangle(self.top_left - point, self.bottom_right - point)
+
+    def __str__(self):
+        return "Rect( %s, %s )" % (self.top_left, self.bottom_right)
+
+    def make_noisy(self):
+        height = self.top_left.y - self.bottom_right.y
+        widht = self.bottom_right.x - self.top_left.x
+        center = (self.top_left + self.bottom_right) * 0.5
+        old = COORDINATE_NOISE
+        set_coordinate_noise(0.6)
+        center = center.make_noisy()
+        set_coordinate_noise(0.3)
+        top_left = center + Point(-widht / 2, height / 2).make_noisy()
+        bottom_right = center + Point(widht / 2, -height / 2).make_noisy()
+        set_coordinate_noise(old)
+        return Rectangle(top_left, bottom_right)
+
+    def to_command(self, noisy=False):
+        rect = self
+        if noisy:
+            rect = self.make_noisy()
+        top_left = rect.top_left
+        bottom_right = rect.bottom_right
+        top_right = Point(bottom_right.x, top_left.y)
+        bottom_left = Point(top_left.x, bottom_right.y)
+        if noisy:
+            top_right = Point(top_right.x + normal(-1, 0) * 0.15, top_right.y + normal(-1, 0) * 0.15)
+            bottom_left = Point(bottom_left.x + normal(0, 1) * 0.15, bottom_right.y + normal(0, 1) * 0.15)
+
+        attributes = ["line width = %.2fcm" % LINE_WIDTH]
+        if noisy:
+            attributes = ["line width = %.2fcm" % (LINE_WIDTH + normal(-1, 1) * LINE_WIDTH_NOISE)]
+            attributes += ["pencildraw"]
+
+        attributes = ",".join(attributes)
+        return "\\draw [%s] %s -- %s -- %s -- %s -- cycle;" % (attributes,
+                                                               top_left, top_right, bottom_right, bottom_left)
+
 
 
 #######################################################################################################################
 
 
 def sample_object():
-    r = np.random.randint(0, 1)
+    r = np.random.randint(0, 3)
     if r == 0:
         return Line.sample()
     if r == 1:
-        return Line.sample()
+        return Circle.sample()
+    if r == 2:
+        return Rectangle.sample()
 
 
 
