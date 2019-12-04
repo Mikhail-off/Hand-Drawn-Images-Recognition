@@ -22,7 +22,6 @@ args = argparser.parse_args()
 ONE_FIGURE_MAX_OBJ = 8
 
 
-
 def main():
     os.makedirs(args.dst_dataset, exist_ok=args.rewrite)
 

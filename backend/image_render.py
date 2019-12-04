@@ -5,6 +5,7 @@ import shutil
 
 IMAGE_SIZE = 256
 
+
 class ImageRender:
     def __init__(self, temp_dir):
         os.makedirs(temp_dir, exist_ok=True)
