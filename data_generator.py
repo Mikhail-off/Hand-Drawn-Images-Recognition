@@ -10,7 +10,7 @@ argparser.add_argument("--dst_dataset", "-dst", type=str,
                        help="Путь до результирующей папки")
 argparser.add_argument("--figures_count", "-n", type=int, default=100,
                        help="Кол-во генерируемых фигур")
-argparser.add_argument("--batch_size", "-bs", default=100, type=int,
+argparser.add_argument("--batch_size", "-bs", type=int, default=50,
                        help="Размер батча")
 argparser.add_argument("--rewrite", action='store_true', default=False,
                        help="Перезаписать dst папку")
@@ -19,7 +19,9 @@ argparser.add_argument("--noisy", action='store_true', default=False,
 
 args = argparser.parse_args()
 
-ONE_FIGURE_MAX_OBJ = 12
+ONE_FIGURE_MAX_OBJ = 8
+
+
 
 def main():
     os.makedirs(args.dst_dataset, exist_ok=args.rewrite)

@@ -245,47 +245,52 @@ class Rectangle(BaseObject):
                 y1 = (min([p1.y, p2.y]))
                 y2 = (max([p1.y, p2.y]))
                 top_left = Point(x1, y1)
+                top_right = Point(x2, y1)
                 bottom_right = Point(x2, y2)
-                return Rectangle(top_left, bottom_right)
+                bottom_left = Point(x1, y2)
+                return Rectangle(top_left, top_right, bottom_right, bottom_left)
 
 
-    def __init__(self, top_left, bottom_right):
+    def __init__(self, top_left, top_right, bottom_right, bottom_left):
         self.top_left = top_left
+        self.top_right = top_right
         self.bottom_right = bottom_right
+        self.bottom_left = bottom_left
 
     def __add__(self, point):
-        return Rectangle(self.top_left + point, self.bottom_right + point)
+        return Rectangle(self.top_left + point, self.top_right + point,
+                         self.bottom_right + point, self.bottom_left + point)
 
     def __sub__(self, point):
-        return Rectangle(self.top_left - point, self.bottom_right - point)
+        return Rectangle(self.top_left - point, self.top_right - point,
+                         self.bottom_right - point, self.bottom_left - point)
 
     def __str__(self):
-        return "Rect( %s, %s )" % (self.top_left, self.bottom_right)
+        return "Rect( %s, %s, %s, %s )" % (self.top_left, self.top_right, self.bottom_right, self.bottom_left)
 
     def make_noisy(self):
         height = self.top_left.y - self.bottom_right.y
-        widht = self.bottom_right.x - self.top_left.x
+        width = self.bottom_right.x - self.top_left.x
         center = (self.top_left + self.bottom_right) * 0.5
         old = COORDINATE_NOISE
-        set_coordinate_noise(0.6)
+        set_coordinate_noise(0.7 * old)
         center = center.make_noisy()
-        set_coordinate_noise(0.3)
-        top_left = center + Point(-widht / 2, height / 2).make_noisy()
-        bottom_right = center + Point(widht / 2, -height / 2).make_noisy()
+        set_coordinate_noise(0.3 * old)
+        top_left = center + Point(-width / 2, height / 2).make_noisy()
+        top_right = center + Point(width / 2, height / 2).make_noisy()
+        bottom_right = center + Point(width / 2, -height / 2).make_noisy()
+        bottom_left = center + Point(-width / 2, -height / 2).make_noisy()
         set_coordinate_noise(old)
-        return Rectangle(top_left, bottom_right)
+        return Rectangle(top_left, top_right, bottom_right, bottom_left)
 
     def to_command(self, noisy=False):
         rect = self
         if noisy:
             rect = self.make_noisy()
         top_left = rect.top_left
+        top_right = rect.top_right
         bottom_right = rect.bottom_right
-        top_right = Point(bottom_right.x, top_left.y)
-        bottom_left = Point(top_left.x, bottom_right.y)
-        if noisy:
-            top_right = Point(top_right.x + normal(-1, 0) * 0.15, top_right.y + normal(-1, 0) * 0.15)
-            bottom_left = Point(bottom_left.x + normal(0, 1) * 0.15, bottom_right.y + normal(0, 1) * 0.15)
+        bottom_left = rect.bottom_left
 
         attributes = ["line width = %.2fcm" % LINE_WIDTH]
         if noisy:
