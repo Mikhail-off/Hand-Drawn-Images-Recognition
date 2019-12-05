@@ -2,8 +2,12 @@
 
 import argparse
 import os
-from backend.objects import Point, Line, Figure, MAX_COORDINATE
+from backend.objects import Point, Line, Circle, Rectangle, Figure,\
+    MAX_COORDINATE, sample_coordinate, sample_radius, sample_object
 from backend.image_render import ImageRender
+
+from random import random, choice
+import shapely
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--dst_dataset", "-dst", type=str,
@@ -19,7 +23,7 @@ argparser.add_argument("--noisy", action='store_true', default=False,
 
 args = argparser.parse_args()
 
-ONE_FIGURE_MAX_OBJ = 8
+ONE_FIGURE_MAX_OBJ = 10
 
 
 def main():
