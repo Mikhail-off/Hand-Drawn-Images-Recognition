@@ -78,7 +78,7 @@ def sample_coordinate():
 
 
 def sample_radius():
-    return np.random.randint(1, 6)
+    return np.random.randint(1, 4)
 
 
 class Point(BaseObject):
@@ -108,7 +108,8 @@ class Point(BaseObject):
         return math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2)
 
     def __init__(self, x, y):
-        self.x, self.y = x, y
+        self.body = (x, y)
+        self.x, self.y = self.body
 
     def make_divisible_by(self, denominator):
         return Point(round(self.x / denominator) * denominator,
@@ -130,7 +131,7 @@ class Point(BaseObject):
         return "(%s, %s)" % (str(self.x), str(self.y))
 
     def __hash__(self):
-        return hash((self.x, self.y))
+        return hash(self.body)
 
     def is_valid(self):
         return 1 <= self.x <= MAX_COORDINATE - 1 and 1 <= self.y <= MAX_COORDINATE - 1
@@ -226,10 +227,14 @@ class Line(BaseObject):
         self.point_to = p2
         self.is_arrow = is_arrow
         self.is_solid = is_solid
+        self.body = (p1, p2)
 
     def __add__(self, point):
         assert isinstance(point, Point)
         return Line(self.point_from + point, self.point_to + point, self.is_arrow, self.is_solid)
+
+    def __hash__(self):
+        return hash(self.body)
 
     def __sub__(self, point):
         assert isinstance(point, Point)
@@ -374,6 +379,7 @@ class Circle(BaseObject):
     def __init__(self, center, radius):
         self.center = center
         self.radius = radius
+        self.body = (self.center, self.radius)
 
     def __add__(self, point):
         return Circle(self.center + point, self.radius)
@@ -383,6 +389,9 @@ class Circle(BaseObject):
 
     def __str__(self):
         return "Circle( %s, %f )" % (self.center, self.radius)
+
+    def __hash__(self):
+        return hash(self.body)
 
     def make_noisy(self):
         return Circle(self.center.make_noisy(), self.radius + normal(-1, 1) * RADIUS_NOISE)
@@ -460,6 +469,7 @@ class Rectangle(BaseObject):
             self.bottom_left = Point(self.top_left.x, self.bottom_right.y)
         else:
             self.bottom_left = bottom_left
+        self.body = (top_left, top_right, bottom_right, bottom_left)
 
     def __add__(self, point):
         return Rectangle(self.top_left + point, self.top_right + point,
@@ -471,6 +481,9 @@ class Rectangle(BaseObject):
 
     def __str__(self):
         return "Rect( %s, %s, %s, %s )" % (self.top_left, self.top_right, self.bottom_right, self.bottom_left)
+
+    def __hash__(self):
+        return hash(self.body)
 
     def make_noisy(self):
         height = self.top_left.y - self.bottom_right.y
@@ -560,7 +573,7 @@ def sample_object(existing_objects):
 def sample_without_intersection(n_lines, n_rectangles, n_circles):
     max_iter = 10**4
     obj_classes = [Circle]*n_circles + [Rectangle]*n_rectangles + [Line]*n_lines
-    existing_objects = []
+    existing_objects = set()
     for obj_class in obj_classes:
         obj_to_add = None
         for i in range(max_iter):
@@ -572,7 +585,7 @@ def sample_without_intersection(n_lines, n_rectangles, n_circles):
             print('MAX_ITERS while generation without intersection')
             obj_to_add = obj_class.sample(existing_objects)
 
-        existing_objects.append(obj_to_add)
+        existing_objects.add(obj_to_add)
     return existing_objects
 
 
@@ -580,8 +593,10 @@ class Figure(BaseObject):
     @staticmethod
     def sample(max_obj_count):
         each_obj = max_obj_count // 4
-        objects_to_sample = (choice(range(each_obj)) + 1, choice(range(each_obj)) + 1, choice(range(2 * each_obj)) + 1)
-        exitsting_objects = sample_without_intersection(*objects_to_sample)
+        rects = choice(range(each_obj)) + 1
+        circles = choice(range(each_obj)) + 1
+        lines = rects + circles
+        exitsting_objects = sample_without_intersection(n_circles=circles, n_rectangles=rects, n_lines=lines)
         return Figure(exitsting_objects)
 
     def __init__(self, objects):

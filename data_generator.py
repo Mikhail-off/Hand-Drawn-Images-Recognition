@@ -20,7 +20,7 @@ argparser.add_argument("--noisy", action='store_true', default=False,
 
 args = argparser.parse_args()
 
-ONE_FIGURE_MAX_OBJ = 12
+ONE_FIGURE_MAX_OBJ = 8
 
 
 def main():
@@ -33,11 +33,13 @@ def main():
         end = min(args.figures_count, i + args.batch_size)
         cur_batch_size = end - start
         figures = [Figure.sample(ONE_FIGURE_MAX_OBJ) for _ in range(cur_batch_size)]
+        images_orig = render.render(figures, (MAX_COORDINATE, MAX_COORDINATE), False)
         images = render.render(figures, (MAX_COORDINATE, MAX_COORDINATE), args.noisy)
 
         for batch_i, img in enumerate(images):
             img.save(os.path.join(args.dst_dataset, '%06d.png' % (i + batch_i)))
-
+        for batch_i, img in enumerate(images_orig):
+            img.save(os.path.join(args.dst_dataset, '%06d_orig.png' % (i + batch_i)))
         i += len(images)
 
     render.close()
