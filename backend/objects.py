@@ -188,7 +188,7 @@ class Line(BaseObject):
 
         if len(other_lines) != 0:
             shuffle(other_lines)
-            #other_lines = other_lines[:min(len(other_lines), len(vert_and_hor_lines))]
+            other_lines = other_lines[:min(len(other_lines), len(vert_and_hor_lines))]
         lines = vert_and_hor_lines + other_lines
         good_lines = []
         for line in lines:
@@ -200,7 +200,7 @@ class Line(BaseObject):
     @staticmethod
     def sample(existing_objects):
         connection_lines = Line._sample_connected(existing_objects) if len(existing_objects) else []
-        if len(connection_lines) != 0 and random() < 0.9:
+        if len(connection_lines) != 0 and random() < 0.75:
             rand_line = choice(connection_lines)
             return Line(rand_line.point_from, rand_line.point_to, random() < 0.5, random() < 0.5)
 
@@ -220,9 +220,6 @@ class Line(BaseObject):
             point_to = Point(x, y)
             line = Line(point_from, point_to, random() < 0.5, random() < 0.5)
         return line
-
-
-
 
     def __init__(self, p1, p2, is_arrow=False, is_solid=True):
         self.point_from = p1
@@ -319,14 +316,21 @@ class Line(BaseObject):
                     return 0
                 if val > 0:
                     return 1
-                return 2
+                return -1
 
             o1 = orientation(self, other.point_from)
             o2 = orientation(self, other.point_to)
             o3 = orientation(other, self.point_from)
             o4 = orientation(other, self.point_to)
 
-            return o1 != o2 and o3 != o4
+            if o1 + o2 == 0 and o3 + o4 == 0:
+                # значит либо лежат по разные стороны, либо обе точки на прямой, что тоже плохо.
+                # когда одна из точек лежит на другой прямой -- это нормально
+                #print()
+                #print(o1, o2, o3, o4)
+                #print(self, 'intersects', other)
+                return True
+            return False
 
         if isinstance(other, Rectangle):
             points = [other.top_left, other.top_right, other.bottom_right, other.bottom_left]
@@ -347,8 +351,6 @@ class Line(BaseObject):
                 if dist < other.radius**2:
                     return True
             return False
-
-
 
 
 #######################################################################################################################
@@ -526,7 +528,7 @@ class Rectangle(BaseObject):
             return other.intersects(self)
         points = [self.top_left, self.top_right, self.bottom_right, self.bottom_left]
         if isinstance(other, Circle):
-            for i in range(0, len(points)):
+            for i in range(len(points)):
                 line = Line(points[(i - 1) % len(points)], points[i])
                 if line.intersects(other):
                     return True
@@ -534,8 +536,8 @@ class Rectangle(BaseObject):
 
         if isinstance(other, Rectangle):
             points_other = [other.top_left, other.top_right, other.bottom_right, other.bottom_left]
-            lines1 = [Line(points[(i - 1) % len(points)], points[i]) for i in range(1, len(points))]
-            lines2 = [Line(points_other[(i - 1) % len(points_other)], points_other[i]) for i in range(1, len(points_other))]
+            lines1 = [Line(points[(i - 1) % len(points)], points[i]) for i in range(len(points))]
+            lines2 = [Line(points_other[(i - 1) % len(points_other)], points_other[i]) for i in range(len(points_other))]
             for (line1, line2) in itertools.product(lines1, lines2):
                 if line1.intersects(line2):
                     return True
@@ -556,8 +558,8 @@ def sample_object(existing_objects):
         assert False
 
 def sample_without_intersection(n_lines, n_rectangles, n_circles):
-    max_iter = 10**3
-    obj_classes = [Circle]*0 + [Rectangle]*n_rectangles + [Line]*5
+    max_iter = 10**4
+    obj_classes = [Circle]*n_circles + [Rectangle]*n_rectangles + [Line]*n_lines
     existing_objects = []
     for obj_class in obj_classes:
         obj_to_add = None
@@ -577,7 +579,8 @@ def sample_without_intersection(n_lines, n_rectangles, n_circles):
 class Figure(BaseObject):
     @staticmethod
     def sample(max_obj_count):
-        objects_to_sample = (choice(range(3)) + 1, choice(range(3)) + 1, choice(range(3)) + 1)
+        each_obj = max_obj_count // 4
+        objects_to_sample = (choice(range(each_obj)) + 1, choice(range(each_obj)) + 1, choice(range(2 * each_obj)) + 1)
         exitsting_objects = sample_without_intersection(*objects_to_sample)
         return Figure(exitsting_objects)
 
