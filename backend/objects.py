@@ -164,6 +164,8 @@ class Line(BaseObject):
         other_lines = []
         for (points_set1, points_set2) in itertools.combinations(connection_points_for_obj, r=2):
             for point1, point2 in itertools.product(points_set1, points_set2):
+                if point1 == point2:
+                    continue
                 good_line = False
                 if point1.x == point2.x and point1.y != point2.y:
                     point_from = Point(point1.x, min(point1.y, point2.y))
@@ -186,28 +188,39 @@ class Line(BaseObject):
 
         if len(other_lines) != 0:
             shuffle(other_lines)
-            other_lines = other_lines[:min(len(other_lines), max(1000, len(vert_and_hor_lines)))]
-        return vert_and_hor_lines + other_lines
+            #other_lines = other_lines[:min(len(other_lines), len(vert_and_hor_lines))]
+        lines = vert_and_hor_lines + other_lines
+        good_lines = []
+        for line in lines:
+            if not any([obj.intersects(line) for obj in existing_objects]):
+                good_lines.append(line)
+        return good_lines
+
 
     @staticmethod
     def sample(existing_objects):
         connection_lines = Line._sample_connected(existing_objects) if len(existing_objects) else []
-        if len(connection_lines) != 0 and random() < 0.8:
+        if len(connection_lines) != 0 and random() < 0.9:
             rand_line = choice(connection_lines)
             return Line(rand_line.point_from, rand_line.point_to, random() < 0.5, random() < 0.5)
 
-        point_from = Point.sample(existing_objects)
+        existing_lines = [p for p in filter(lambda x: isinstance(x, Line), existing_objects)]
+        existing_other = [p for p in filter(lambda x: not(isinstance(x, Line)), existing_objects)]
+        point_from = Point.sample(existing_other)
+        line = None
+        while line is None or line in existing_lines:
+            x = point_from.x
+            y = point_from.y
+            if random() < 0.5:
+                while abs(point_from.y - y) < 2:
+                    y = sample_coordinate()
+            else:
+                while abs(point_from.x - x) < 2:
+                    x = sample_coordinate()
+            point_to = Point(x, y)
+            line = Line(point_from, point_to, random() < 0.5, random() < 0.5)
+        return line
 
-        x = point_from.x
-        y = point_from.y
-        if random() < 0.5:
-            while abs(point_from.y - y) < 2:
-                y = sample_coordinate()
-        else:
-            while abs(point_from.x - x) < 2:
-                x = sample_coordinate()
-        point_to = Point(x, y)
-        return Line(point_from, point_to, random() < 0.5, random() < 0.5)
 
 
 
@@ -299,26 +312,26 @@ class Line(BaseObject):
 
     def intersects(self, other):
         if isinstance(other, Line):
-            def orientation(p, q, r):
-                val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y)
-                if val == 0: return 0  # colinear
-                if val > 0: return 1
+            def orientation(line, point):
+                val = (point.x - line.point_from.x) * (line.point_to.y - line.point_from.y) -\
+                      (point.y - line.point_from.y) * (line.point_to.x - line.point_from.x)
+                if val == 0:
+                    return 0
+                if val > 0:
+                    return 1
                 return 2
 
-            o1 = orientation(self.point_from, self.point_to, other.point_from)
-            o2 = orientation(self.point_from, self.point_to, other.point_to)
-            o3 = orientation(other.point_from, other.point_to, self.point_from)
-            o4 = orientation(other.point_from, other.point_to, self.point_to)
+            o1 = orientation(self, other.point_from)
+            o2 = orientation(self, other.point_to)
+            o3 = orientation(other, self.point_from)
+            o4 = orientation(other, self.point_to)
 
-            if o1 != o2 and o3 != o4:
-                return True
-
-            return False
+            return o1 != o2 and o3 != o4
 
         if isinstance(other, Rectangle):
             points = [other.top_left, other.top_right, other.bottom_right, other.bottom_left]
-            for i in range(1, len(points)):
-                line = Line(points[i - 1], points[i])
+            for i in range(len(points)):
+                line = Line(points[(i - 1) % len(points)], points[i])
                 if self.intersects(line):
                     return True
             return False
@@ -399,13 +412,16 @@ class Circle(BaseObject):
         return [self.center.y - self.radius, self.center.y, self.center.y + self.radius]
 
     def connection_points(self):
-        return [Point(x, y) for (x, y) in zip(self.support_coordinate_x(), self.support_coordinate_y())]
+        return [Point(self.center.x, self.center.y + self.radius),
+                Point(self.center.x, self.center.y - self.radius),
+                Point(self.center.x + self.radius, self.center.y),
+                Point(self.center.x - self.radius, self.center.y)]
 
     def intersects(self, other):
         if isinstance(other, Line) or isinstance(other, Rectangle):
             return other.intersects(self)
         if isinstance(other, Circle):
-            x1, y1, r1 = self.center.x,self.center.y,self.radius
+            x1, y1, r1 = self.center.x, self.center.y, self.radius
             x2, y2, r2 = other.center.x, other.center.y, other.radius
             return (x1 - x2)**2 + (y1 - y2)**2 < (r1 + r2)**2
 
@@ -494,23 +510,32 @@ class Rectangle(BaseObject):
         return [self.top_left.y, self.top_right.y, self.bottom_right.y, self.bottom_left.y]
 
     def connection_points(self):
-        return list(Point(x, y) for (x, y) in zip(self.support_coordinate_x(), self.support_coordinate_y()))
+        points = []
+        for x in range(self.top_left.x, self.top_right.x + 1):
+            points.append(Point(x, self.top_right.y))
+        for y in range(self.bottom_right.y, self.top_right.y + 1):
+            points.append(Point(self.top_right.x, y))
+        for x in range(self.bottom_left.x, self.bottom_right.x + 1):
+            points.append(Point(x, self.bottom_right.y))
+        for y in range(self.bottom_left.y, self.top_left.y + 1):
+            points.append(Point(self.bottom_left.x, y))
+        return points
 
     def intersects(self, other):
         if isinstance(other, Line):
             return other.intersects(self)
         points = [self.top_left, self.top_right, self.bottom_right, self.bottom_left]
         if isinstance(other, Circle):
-            for i in range(1, len(points)):
-                line = Line(points[i - 1], points[i])
+            for i in range(0, len(points)):
+                line = Line(points[(i - 1) % len(points)], points[i])
                 if line.intersects(other):
                     return True
             return False
 
         if isinstance(other, Rectangle):
             points_other = [other.top_left, other.top_right, other.bottom_right, other.bottom_left]
-            lines1 = [Line(points[i - 1], points[i]) for i in range(1, len(points))]
-            lines2 = [Line(points_other[i - 1], points_other[i]) for i in range(1, len(points_other))]
+            lines1 = [Line(points[(i - 1) % len(points)], points[i]) for i in range(1, len(points))]
+            lines2 = [Line(points_other[(i - 1) % len(points_other)], points_other[i]) for i in range(1, len(points_other))]
             for (line1, line2) in itertools.product(lines1, lines2):
                 if line1.intersects(line2):
                     return True
@@ -530,26 +555,30 @@ def sample_object(existing_objects):
     else:
         assert False
 
-def sample_without_intersection(existing_objects):
-    max_iter = 10**5
-    obj = choice([Line, Circle, Rectangle])
+def sample_without_intersection(n_lines, n_rectangles, n_circles):
+    max_iter = 10**3
+    obj_classes = [Circle]*0 + [Rectangle]*n_rectangles + [Line]*5
+    existing_objects = []
+    for obj_class in obj_classes:
+        obj_to_add = None
+        for i in range(max_iter):
+            sampled_obj = obj_class.sample(existing_objects)
+            if not any([obj.intersects(sampled_obj) for obj in existing_objects]):
+                obj_to_add = sampled_obj
+                break
+        if obj_to_add is None:
+            print('MAX_ITERS while generation without intersection')
+            obj_to_add = obj_class.sample(existing_objects)
 
-    for i in range(max_iter):
-        sampled_obj = obj.sample(existing_objects)
-        if not any([obj.intersects(sampled_obj) for obj in existing_objects]):
-            return sampled_obj
-    print('MAX_ITERS while generation without intersection')
-    return obj.sample(existing_objects)
+        existing_objects.append(obj_to_add)
+    return existing_objects
 
 
 class Figure(BaseObject):
     @staticmethod
     def sample(max_obj_count):
-        exitsting_objects = []
-        objects_to_sample = max(5, choice(range(max_obj_count)) + 1)
-        for _ in range(objects_to_sample):
-            exitsting_objects.append(sample_without_intersection(exitsting_objects))
-            print('Sampled')
+        objects_to_sample = (choice(range(3)) + 1, choice(range(3)) + 1, choice(range(3)) + 1)
+        exitsting_objects = sample_without_intersection(*objects_to_sample)
         return Figure(exitsting_objects)
 
     def __init__(self, objects):
