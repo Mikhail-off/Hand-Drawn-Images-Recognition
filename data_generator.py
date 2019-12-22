@@ -4,7 +4,7 @@ import argparse
 import os
 from backend.objects import Figure, MAX_COORDINATE
 from backend.image_render import ImageRender
-
+from tqdm import tqdm
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--dst_dataset", "-dst", type=str,
@@ -28,6 +28,7 @@ def main():
 
     render = ImageRender('temp/')
     i = 0
+    tbar = tqdm(total=args.figures_count)
     while i < args.figures_count:
         start = i
         end = min(args.figures_count, i + args.batch_size)
@@ -40,6 +41,7 @@ def main():
             img.save(os.path.join(args.dst_dataset, '%06d.png' % (i + batch_i)))
     
         i += len(images)
+        tbar.update(len(images))
 
     render.close()
 
